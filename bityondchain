@@ -1,0 +1,129 @@
+#!/bin/bash
+
+function check_directory_exists {
+  if [ -d $1 ]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+function check_file_exists {
+  if [ -f $1 ]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+function is_loom_running {
+	LOOM_PID=$(pgrep -f "./loom run")
+
+	if [ ! $LOOM_PID ]; then 
+		echo 0
+	else 
+		echo 1
+	fi
+}
+
+function get_loom_pid {
+	pgrep -f "./loom run"
+}
+
+case "$1" in
+
+setup)
+	cd dappchain
+
+	# get latest loom binary
+	curl https://raw.githubusercontent.com/loomnetwork/loom-sdk-documentation/master/scripts/get_loom.sh | sh && chmod +x loom
+
+	# initialize the genesis file and chaindata directory
+	./loom init
+
+	mkdir logs
+
+	./loom genkey -k bityond_priv_key -a bityond_pub_key > logs/address.log
+  ;;
+
+status)
+
+	LOOM_PID=$(get_loom_pid)
+
+	if [ $(is_loom_running) = 1 ]; then
+		echo "------------------"
+		echo "DAppChain: RUNNING"
+		echo "------------------"
+		echo "PID: $LOOM_PID"
+	else
+		echo "----------------------"
+		echo "DAppChain: NOT RUNNING"
+		echo "----------------------"
+	fi
+
+  ;;
+
+start)
+  echo "start"
+
+  	if [ $(is_loom_running) = 0 ]; then
+	  cd dappchain
+	  ./loom run
+	else 
+	  echo "DAppChain is running"
+	fi
+  ;;
+
+stop)
+	LOOM_PID=$(get_loom_pid)
+
+	if [ $(is_loom_running) = 1 ]; then
+	  kill -9 $LOOM_PID
+	  echo "Stopped DAppChain"
+	fi
+  ;;
+
+restart)
+
+	# reset the chaindata without clearing the config files to give you a fresh chain
+
+	LOOM_PID=$(get_loom_pid)
+
+	if [ $(is_loom_running) = 1 ]; then
+	  echo "Stop DAppChain first."
+	  exit -1
+	fi
+
+	if [ $(is_loom_running) = 0 ]; then
+	  cd dappchain
+	  ./loom reset
+	  echo "Reset chaindata without clearing config files."
+	fi
+
+  ;;
+
+cleanup)
+	echo "cleanup"
+
+  ;;
+
+genkey)
+	cd dappchain
+
+	# TODO: add generated keys somewhere else. it will be used to map bityond users across chains.
+
+	date +%s >> logs/genkey.log
+	./loom genkey -k priv_key -a pub_key >> logs/genkey.log
+	echo "ENCODED PRIV KEY" >> logs/genkey.log
+	cat priv_key >> logs/genkey.log
+	echo "\nENCODED PUB KEY" >> logs/genkey.log
+	cat pub_key >> logs/genkey.log
+	echo "\n---------------------" >> logs/genkey.log
+
+	rm priv_key && rm pub_key
+  ;;
+*)
+   echo "Usage: $0 {setup|start|status|stop|restart|cleanup}"
+esac
+
+exit 0
